@@ -1,0 +1,210 @@
+select * from inflation_data limit 12
+-- See the first 10 rows
+SELECT * 
+FROM inflation_data
+LIMIT 10;
+
+-- Count number of rows
+SELECT COUNT(*) 
+FROM inflation_data;
+
+-- Check distinct countries
+SELECT DISTINCT "Country Name" 
+FROM inflation_data;
+
+-- Check distinct years
+SELECT DISTINCT "Year" 
+FROM inflation_data;
+
+-- Average inflation per year
+SELECT "Year", AVG("Inflation") AS avg_inflation
+FROM inflation_data
+GROUP BY "Year"
+ORDER BY "Year";
+
+SELECT "Country Name",
+       COUNT("Inflation") AS inflation_count
+FROM inflation_data
+WHERE "Country Name" = 'Tuvalu'
+GROUP BY "Country Name";
+
+
+
+
+
+#1High-Risk Countries:
+#Which countries experienced consistently high inflation over the last 60+ years, indicating potential economic instability for investors or policymakers?
+SELECT "Country Name",
+       AVG("Inflation") AS avg_inflation
+FROM inflation_data
+GROUP BY "Country Name"
+ORDER BY avg_inflation DESC
+LIMIT 10;
+
+#CTE
+WITH avg_inflation AS (
+    SELECT "Country Name", AVG("Inflation") AS avg_inflation
+    FROM inflation_data
+    GROUP BY "Country Name"
+)
+SELECT "Country Name", avg_inflation
+FROM avg_inflation
+ORDER BY avg_inflation DESC
+LIMIT 10;
+#2Deflation Concerns:
+#Which countries experienced periods of negative inflation, signaling possible economic slowdown or risk for businesses operating there?
+SELECT "Country Name", "Year", "Inflation"
+FROM inflation_data
+WHERE "Inflation" < 0
+ORDER BY "Year", "Country Name";
+
+#self join
+SELECT a."Country Name",
+       a."Year",
+       a."Inflation",
+       b."Inflation" AS next_year_inflation
+FROM inflation_data a
+INNER JOIN inflation_data b
+    ON a."Country Name" = b."Country Name"
+    AND b."Year" = a."Year" + 1
+WHERE a."Inflation" < 0 
+  AND b."Inflation" < 0
+ORDER BY a."Country Name", a."Year";
+#3Volatility Leaders:
+#Which countries have the most volatile inflation rates, and how might this affect pricing strategies, investment, or import/export decisions?
+SELECT "Country Name",
+       STDDEV("Inflation") AS inflation_volatility
+FROM inflation_data
+GROUP BY "Country Name"
+ORDER BY inflation_volatility DESC
+LIMIT 10;
+
+#advanced
+SELECT 
+    a."Country Name",
+    a."Year" AS current_year,
+    a."Inflation" AS current_year_inflation,
+    b."Inflation" AS next_year_inflation,
+    (b."Inflation" - a."Inflation") AS inflation_change
+FROM inflation_data a
+INNER JOIN inflation_data b
+    ON a."Country Name" = b."Country Name"
+    AND b."Year" = a."Year" + 1
+ORDER BY ABS(b."Inflation" - a."Inflation") DESC
+LIMIT 20;
+#4Global Inflation Trends:
+#How has average global inflation changed over time, and what macro trends can businesses anticipate?
+SELECT 
+    "Year",
+    AVG("Inflation") AS avg_global_inflation
+FROM inflation_data
+GROUP BY "Year"
+ORDER BY "Year";
+
+#5Regional Stability:
+#Which regions (e.g., Africa, Europe, Asia) have the most stable vs. unstable inflation patterns, and how should companies adjust regional operations?
+SELECT 
+    "Country Name",
+    AVG("Inflation") AS avg_inflation,
+    STDDEV("Inflation") AS inflation_volatility
+FROM inflation_data
+GROUP BY "Country Name"
+ORDER BY inflation_volatility DESC;
+
+#6Yearly Inflation Spikes:
+#Which years had unusually high inflation spikes, and what events or crises might explain these peaks?
+SELECT 
+    "Country Name",
+    "Year",
+    "Inflation",
+    RANK() OVER (PARTITION BY "Year" ORDER BY "Inflation" DESC) AS inflation_rank
+FROM inflation_data
+WHERE "Inflation" > 50   -- you can adjust threshold for what counts as a spike
+ORDER BY "Year", inflation_rank
+LIMIT 50;
+#7Impact on Emerging Economies:
+#Which emerging economies faced rapid inflation growth, potentially affecting foreign investment and local purchasing power?
+SELECT 
+    a."Country Name",
+    a."Year",
+    a."Inflation" AS current_inflation,
+    b."Inflation" AS previous_year_inflation,
+    (a."Inflation" - b."Inflation") AS inflation_change
+FROM inflation_data a
+INNER JOIN inflation_data b
+    ON a."Country Name" = b."Country Name"
+    AND a."Year" = b."Year" + 1
+WHERE a."Inflation" - b."Inflation" > 50  -- choose a threshold for "rapid growth"
+ORDER BY inflation_change DESC;
+#8Long-Term Deflation Patterns:
+#Are there countries with long periods of deflation or very low inflation, and how might this influence monetary policy or business pricing?
+SELECT 
+    "Country Name",
+    COUNT(*) AS deflation_years,
+    AVG("Inflation") AS avg_deflation_inflation,
+    MIN("Year") AS first_deflation_year,
+    MAX("Year") AS last_deflation_year
+FROM inflation_data
+WHERE "Inflation" <= 0  -- deflation
+GROUP BY "Country Name"
+ORDER BY deflation_years DESC, avg_deflation_inflation ASC;
+#include both deflation (≤0) and very low positive inflation (≤1%), to capture countries with stagnant price growth:
+SELECT
+    "Country Name",
+    COUNT(*) AS low_inflation_years,
+    AVG("Inflation") AS avg_low_inflation,
+    MIN("Year") AS first_low_inflation_year,
+    MAX("Year") AS last_low_inflation_year
+FROM inflation_data
+WHERE "Inflation" <= 1  -- deflation or very low inflation
+GROUP BY "Country Name"
+HAVING COUNT(*) >= 3     -- only countries with 3+ years of low inflation
+ORDER BY low_inflation_years DESC, avg_low_inflation ASC;
+   
+#9Inflation Comparisons Across Similar Economies:
+#Among countries with similar GDP levels, which ones had higher or lower inflation, and what lessons can policymakers or businesses learn?
+
+#Compare inflation across countries with similar GDP levels
+SELECT
+    CASE 
+        WHEN "Country Name" IN ('United States', 'Japan', 'Germany', 'Switzerland', 'Israel') THEN 'High Income'
+        WHEN "Country Name" IN ('Indonesia', 'Uruguay', 'Brazil', 'Peru', 'Ghana', 'Chile', 'Bolivia') THEN 'Emerging'
+        ELSE 'Other'
+    END AS gdp_group,
+    "Country Name",
+    AVG("Inflation") AS avg_inflation,
+    MIN("Inflation") AS min_inflation,
+    MAX("Inflation") AS max_inflation
+FROM inflation_data
+GROUP BY gdp_group, "Country Name"
+ORDER BY gdp_group, avg_inflation DESC;
+
+#10Predictive Insights:
+#Based on historical trends, which countries are likely to experience higher inflation in the next decade, informing investment, pricing, or supply chain decisions?
+
+WITH recent_inflation AS (
+    SELECT
+        "Country Name",
+        "Year",
+        "Inflation",
+        LAG("Inflation") OVER (PARTITION BY "Country Name" ORDER BY "Year") AS prev_year_inflation
+    FROM inflation_data
+),
+inflation_growth AS (
+    SELECT
+        "Country Name",
+        COUNT(*) AS years_observed,
+        AVG("Inflation" - prev_year_inflation) AS avg_annual_increase,
+        MAX("Inflation") AS max_inflation
+    FROM recent_inflation
+    WHERE prev_year_inflation IS NOT NULL
+    GROUP BY "Country Name"
+)
+SELECT
+    "Country Name",
+    avg_annual_increase,
+    max_inflation
+FROM inflation_growth
+WHERE avg_annual_increase > 0
+ORDER BY avg_annual_increase DESC, max_inflation DESC
+LIMIT 20;
