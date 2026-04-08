@@ -1,4 +1,4 @@
-# 🌍 Global Inflation Analysis & Prediction
+# 🌍 Global Inflation Analysis & Prediction - DATA SCIENCE PROJECT
 
 ## Project Overview
 This project analyzes global inflation trends from 1960 to 2024 and builds predictive models to forecast inflation at the country level. Using historical World Bank data, the project explores how inflation varies across countries and over time, identifies outliers and extreme events, and develops machine learning models to predict future inflation trends.
